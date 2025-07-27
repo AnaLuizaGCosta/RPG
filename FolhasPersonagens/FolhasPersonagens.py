@@ -1,110 +1,70 @@
-from PIL import Image, ImageDraw
+import tkinter as tk
+from tkinter import filedialog, messagebox
+from PIL import Image
+from rembg import remove
+from io import BytesIO
+import platform
+import subprocess
+import sys
 import os
 
-# --- CONFIGURAÇÕES INICIAIS ---
-# Caminho do template da ficha
-TEMPLATE_PATH = "ficha_template.png"  # Renomeie o arquivo do template com esse nome
+def recurso_absoluto(relativo):
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relativo)
+    return os.path.join(os.path.abspath("."), relativo)
 
-# Coordenadas aproximadas dos testes de resistência (FOR, DES, etc.)
-resistencia_coords = {
-    "FOR": (37, 338),
-    "DES": (88, 338),
-    "CON": (139, 338),
-    "INT": (190, 338),
-    "SAB": (240, 338),
-    "CAR": (290, 338)
-}
+TEMPLATE_PATH = recurso_absoluto("ficha_template.png")
 
-# Coordenadas aproximadas das perícias
-pericia_coords = {
-    "Acrobacia": (16, 508),
-    "Arcanismo": (16, 527),
-    "Atletismo": (16, 546),
-    "Atuação": (16, 564),
-    "Blefar": (16, 582),
-    "Furtividade": (16, 600),
-    "História": (16, 618),
-    "Intimidação": (16, 636),
-    "Intuição": (16, 655),
-    "Investigação": (16, 673),
-    "Lidar com Animais": (16, 692),
-    "Medicina": (16, 710),
-    "Natureza": (16, 730),
-    "Percepção": (16, 748),
-    "Persuasão": (16, 766),
-    "Prestidigitação": (16, 785),
-    "Religião": (16, 803),
-    "Sobrevivência": (16, 822)
-}
-
-# Coordenadas do centro do círculo do personagem
-PERSONAGEM_POS = (425, 315)  # canto superior esquerdo
+PERSONAGEM_POS = (425, 315)
 PERSONAGEM_SIZE = (450, 550)
+SAIDA_IMAGEM = "ficha_final.png"
 
 
-# --- FUNÇÃO PRINCIPAL ---
-def gerar_ficha(imagem_personagem_path, pericias, resistencias, saida="ficha_final.png"):
-    # Carrega o template da ficha
+def abrir_imagem(caminho):
+    sistema = platform.system()
+    try:
+        if sistema == "Windows":
+            os.startfile(caminho)
+        elif sistema == "Darwin":  # macOS
+            subprocess.run(["open", caminho])
+        else:  # Linux
+            subprocess.run(["xdg-open", caminho])
+    except Exception as e:
+        print(f"Erro ao abrir imagem: {e}")
+
+
+def gerar_ficha(imagem_personagem_path):
     ficha = Image.open(TEMPLATE_PATH).convert("RGBA")
-    draw = ImageDraw.Draw(ficha)
 
-    # Insere imagem do personagem
-    personagem = Image.open(imagem_personagem_path).convert("RGBA")
+    with open(imagem_personagem_path, 'rb') as f:
+        input_image_bytes = f.read()
+    output_image_bytes = remove(input_image_bytes)
+
+    personagem = Image.open(BytesIO(output_image_bytes)).convert("RGBA")
     personagem = personagem.resize(PERSONAGEM_SIZE)
     ficha.paste(personagem, PERSONAGEM_POS, personagem)
 
-    # Desenha bolinhas pretas nos testes de resistência
-    for nome, marcado in resistencias.items():
-        if marcado and nome in resistencia_coords:
-            x, y = resistencia_coords[nome]
-            draw.ellipse((x-6, y-6, x+6, y+6), fill="black")
+    ficha.save(SAIDA_IMAGEM)
 
-    # Desenha bolinhas pretas nas perícias
-    for nome, marcado in pericias.items():
-        if marcado and nome in pericia_coords:
-            x, y = pericia_coords[nome]
-            draw.ellipse((x-6, y-6, x+6, y+6), fill="black")
+    # Mensagem de sucesso
+    messagebox.showinfo("Concluído", "Ficha gerada com sucesso!")
 
-    # Salva a imagem final
-    ficha.save(saida)
-    print(f"Ficha gerada e salva como: {saida}")
+    # Abre a imagem
+    abrir_imagem(SAIDA_IMAGEM)
 
 
-# --- EXEMPLO DE USO ---
-if __name__ == "__main__":
-    # Caminho da imagem do personagem fornecida pelo usuário
-    imagem_personagem = input("Caminho da imagem do personagem (ex: personagem.png): ")
+def selecionar_imagem():
+    caminho = filedialog.askopenfilename(title="Selecione a imagem do personagem")
+    if caminho:
+        gerar_ficha(caminho)
 
-    # Exemplo de dicionário com perícias marcadas
-    pericias_marcadas = {
-        "Acrobacia": True,
-        "Arcanismo": True,
-        "Atletismo": True,
-        "Atuação": True,
-        "Blefar": True,
-        "Furtividade": True,
-        "História": True,
-        "Intimidação": True,
-        "Intuição": True,
-        "Investigação": True,
-        "Lidar com Animais": True,
-        "Medicina": True,
-        "Natureza": True,
-        "Percepção": True,
-        "Persuasão": True,
-        "Prestidigitação": True,
-        "Religião": True,
-        "Sobrevivência": True
-    }
 
-    # Exemplo de dicionário com resistências marcadas
-    resistencias_marcadas = {
-        "FOR": True,
-        "DES": True,
-        "CON": True,
-        "INT": True,
-        "SAB": True,
-        "CAR": True
-    }
+# Criando interface
+janela = tk.Tk()
+janela.title("Gerador de Ficha RPG")
+janela.geometry("320x100")
 
-    gerar_ficha(imagem_personagem, pericias_marcadas, resistencias_marcadas)
+botao = tk.Button(janela, text="Selecionar imagem do personagem", command=selecionar_imagem)
+botao.pack(pady=30)
+
+janela.mainloop()
